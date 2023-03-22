@@ -1,92 +1,134 @@
 # k8s-service-1
 
+This repository is used for deploying microservice k8s-service-1. It is possible to use files from this directory to deploy service.
 
+## Regex option
 
-## Getting started
+If you need to change the value of regex parameter, it's necessary to edit Simloudfile.yaml.
+There are 2 possible options for regex value:
+- true - for service, the regex rules will be applied based on the already set and specifically configured regex rules in Simloudfile.yaml. It could be a custom value that suits a cust>
+- false - service will be deployed without any regex rules and according to already specified configuration in URL path.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+Example of code block:
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/simloud-demo/k8s-service-1.git
-git branch -M main
-git push -uf origin main
+regex:
+    enabled: false
+    rewrite-target: /$2$3$4
+````
 ```
+regex:
+    enabled: true
+    rewrite-target: /$2$3$4
+```
+## Passing secrets from vault via simloid_ci.sh file
 
-## Integrate with your tools
+Follow these steps to output vault secrets through a simloud_ci.sh file in a Jenkins job:
 
-- [ ] [Set up project integrations](https://gitlab.com/simloud-demo/k8s-service-1/-/settings/integrations)
+Add the following commands to your simloud_ci file, where <path_to_secret> is a path to required secret in vault:
 
-## Collaborate with your team
+```sh
+  username=$(vault kv get -field=username  <path_to_secret>)
+  password=$(vault kv get -field=password  <path_to_secret>)
+```
+You can view the values by navigating to the job build output after building the service from the branch.
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Automatically merge when pipeline succeeds](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+>NOTE: It is possible to provide custom steps using simloud_ci file.
 
-## Test and Deploy
 
-Use the built-in continuous integration in GitLab.
+## Additional options for cloud_resources block
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing(SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+>NOTE: It is possible to deploy k8s-service-1 with additional options for cloud_resources block in Simloudfile.yaml, such as `S3` and `SQS`.
 
-***
+For deploying **S3**, it is necessary to add following code snippet to `cloud_resources` block at Simloudfile.yaml:
 
-# Editing this README
+```yaml
+- name: s3_1
+    env_name_prefix: S31l
+    type: s3
+    params:
+     region: eu-west-1                    # also change region value in CreateBucketConfiguration: {LocationConstraint: some region}
+     config:
+       Bucket: some-unique-name983742398
+       CreateBucketConfiguration:
+         LocationConstraint: eu-west-1    # if you change value of region above, this one also must be changed
+     static_hosting_config:
+       Bucket: some-unique-name983742398
+       WebsiteConfiguration:
+         ErrorDocument:
+           Key: error.html
+         IndexDocument:
+           Suffix: index.html
+     policy_config:
+       Bucket: some-unique-name983742398
+       Policy: '{
+       "Version": "2012-10-17",
+       "Statement": [{
+          "Sid": "PublicReadGetObject",
+          "Effect": "Allow",
+          "Principal": "*",
+          "Action": "s3:GetObject",
+          "Resource": "arn:aws:s3:::some-unique-name983742398/*"
+       }]
+}'
+     tags_config:
+       Bucket: some-unique-name983742398
+       Tagging:
+         TagSet:
+           - Key: user_tag
+             Value: user_value
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thank you to [makeareadme.com](https://www.makeareadme.com/) for this template.
+```
+S3 segment is parsed using the S3 module from the boto. More information <a href="https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#S3.Client.create_bucketz" target="_blank">here</a>.
 
-## Suggestions for a good README
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+For deploying **SQS**, it is necessary to add following code snippet to `cloud_resources` block at Simloudfile.yaml:
 
-## Name
-Choose a self-explaining name for your project.
+```yaml
+ - name: sqs_1
+    env_name_prefix: SQS1
+    type: sqs
+    params:
+     QueueName: 2347918-43728.fifo        # If FifoQueue: True, the name of a FIFO queue can only include alphanumeric characters, hyphens, or underscores, must end with .fifo suffix a>
+     # attrituptes must be strings -> ''
+     Attributes:
+       DelaySeconds: '5'                  # 0 to 900 seconds
+       MaximumMessageSize: '2048'         # from 1,024 bytes (1 KiB) to 262,144 bytes
+       MessageRetentionPeriod: '7200'     # from 60 seconds (1 minute) to 1,209,600 seconds
+       Policy: '{
+   "Version": "2012-10-17",
+   "Id": "Policy2374982789374987",
+   "Statement" : [{
+      "Sid": "Stmt1345234234",
+      "Effect": "Deny",
+      "Principal": {
+         "AWS": [
+            "322219090568"
+         ]
+      },
+      "Action": [
+         "sqs:SendMessage",
+         "sqs:ReceiveMessage"
+      ],
+      "Resource": "arn:aws:sqs:ap-southeast-1:322219090568:sqs_name1"
+   }]
+}'
+       ReceiveMessageWaitTimeSeconds: '3' # from 0 to 20 (seconds)
+       VisibilityTimeout: '300'           # from 0 to 43,200 (12 hours)
+       FifoQueue: 'True'                  # If True, the name of a FIFO queue can only include alphanumeric characters, hyphens, or underscores, must end with .fifo suffix and be 1 to >
+     tags:
+       user_tag: user_value
+```
+SQS segment is parsed using the SQS module from the boto. More information <a href="https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sqs.html#SQS.Client.create_queue" target="_blank">here</a>.
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+You can see the snippets of code for deploying these services in [Simloudfile.yaml](https://gitlab.com/simloud-demo/k8s-service-2/-/blob/main/Simloudfile.yaml) in this repository or by the following <a href="https://prod--simloud-docs.netlify.app/en/examples-of-simloud-files/#creating-and-deploying-databases" target="_blank">link</a>.
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+**Additional documentation is placed by links:**
+- [**"Simloudfile.yaml"**](https://prod--simloud-docs.netlify.app/en/simloudfile.yaml/)
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+- [**"How to use Simloud files"**](https://prod--simloud-docs.netlify.app/en/how-to-use-simloud-files/)
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+- [**"How to create and manage your SSH keys"**](https://stage--simloud-docs.netlify.app/en/getting-started/#managing-the-ssh-keys)
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+- [**"How to work with repositories"**](https://stage--simloud-docs.netlify.app/en/getting-started/#add-new-git-repositories-services)
